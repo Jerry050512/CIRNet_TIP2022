@@ -10,15 +10,15 @@ import numpy as np
 
 def randomFlip(img, depth, gt):
     flip_flag1 = random.randint(0, 1)
-    flip_flag2 = random.randint(2, 3)
+    # flip_flag2 = random.randint(2, 3) # no vertical flip
     if flip_flag1 == 1:
         img = img.transpose(Image.FLIP_LEFT_RIGHT)
         depth = depth.transpose(Image.FLIP_LEFT_RIGHT)
         gt = gt.transpose(Image.FLIP_LEFT_RIGHT)
-    if flip_flag2 == 2:
-        img = img.transpose(Image.FLIP_TOP_BOTTOM)
-        depth = depth.transpose(Image.FLIP_TOP_BOTTOM)
-        gt = gt.transpose(Image.FLIP_TOP_BOTTOM)
+    # if flip_flag2 == 2:
+    #     img = img.transpose(Image.FLIP_TOP_BOTTOM)
+    #     depth = depth.transpose(Image.FLIP_TOP_BOTTOM)
+    #     gt = gt.transpose(Image.FLIP_TOP_BOTTOM)
     return img, depth, gt
 
 
@@ -50,12 +50,12 @@ class SalObjDataset(data.Dataset):
             depth_root: the path of depth training images.
             gt_root: the path of the corresponding ground truth of training images.
             trainsize: the image size of training images.
-            
+
         """
         self.trainsize = trainsize
-        self.images = [image_root + f for f in os.listdir(image_root) if f.endswith('.jpg') or f.endswith('.png')]
-        self.depths = [depth_root + f for f in os.listdir(depth_root) if f.endswith('.jpg') or f.endswith('.png') or f.endswith('.bmp')]
-        self.gts = [gt_root + f for f in os.listdir(gt_root) if f.endswith('.jpg') or f.endswith('.png')]
+        self.images = [image_root + f for f in os.listdir(image_root) if f.endswith('.bmp') or f.endswith('.png')]
+        self.depths = [depth_root + f for f in os.listdir(depth_root) if f.endswith('.tiff')]
+        self.gts = [gt_root + f for f in os.listdir(gt_root) if f.endswith('.png')]
         self.images = sorted(self.images)
         self.depths = sorted(self.depths)
         self.gts = sorted(self.gts)
@@ -80,14 +80,7 @@ class SalObjDataset(data.Dataset):
         gt = self.binary_loader(self.gts[index])
         image, depth, gt = randomFlip(image, depth, gt)
         image, depth, gt = randomRotation(image, depth, gt)
-        # multiScale
-        scale_flag = random.randint(0, 2)
-        if scale_flag == 1:
-            self.trainsize = 128
-        elif scale_flag == 2:
-            self.trainsize = 256
-        else:
-            self.trainsize = 352
+
         image = self.img_transform(image)
         depth = self.depths_transform(depth)
         gt = self.gt_transform(gt)
@@ -101,10 +94,10 @@ class SalObjDataset(data.Dataset):
         for img_path, depth_path, gt_path in zip(self.images, self.depths, self.gts):
             img = Image.open(img_path)
             gt = Image.open(gt_path)
-            if img.size == gt.size:
-                images.append(img_path)
-                depths.append(depth_path)
-                gts.append(gt_path)
+            #if img.size == gt.size:
+            images.append(img_path)
+            depths.append(depth_path)
+            gts.append(gt_path)
         self.images = images
         self.depths = depths
         self.gts = gts
@@ -134,7 +127,7 @@ class SalObjDataset(data.Dataset):
         return self.size
 
 
-def get_loader(image_root, depth_root, gt_root, batchsize, trainsize, shuffle=True, num_workers=8, pin_memory=True):
+def get_loader(image_root, depth_root, gt_root, batchsize, trainsize, shuffle=True, num_workers=2, pin_memory=True):
     dataset = SalObjDataset(image_root, depth_root, gt_root, trainsize)
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=batchsize,
@@ -147,13 +140,22 @@ def get_loader(image_root, depth_root, gt_root, batchsize, trainsize, shuffle=Tr
 class test_dataset:
     def __init__(self, image_root, depth_root, gt_root, testsize):
         self.testsize = testsize
-        self.images = [image_root + f for f in os.listdir(image_root) if f.endswith('.jpg') or f.endswith('.png')]
-        self.depth = [depth_root + f for f in os.listdir(depth_root) if f.endswith('.jpg') or f.endswith('.png')
-                      or f.endswith('.bmp')]
-        self.gts = [gt_root + f for f in os.listdir(gt_root) if f.endswith('.jpg') or f.endswith('.png')]
+        self.images = [os.path.join(image_root, f) for f in os.listdir(image_root) if f.endswith('.bmp')]
+        self.depths = [os.path.join(depth_root, f) for f in os.listdir(depth_root) if f.endswith('.tiff')]
+
+        self.gts = None
+        if gt_root is not None and os.path.exists(gt_root):
+            try:
+                gt_files = [f for f in os.listdir(gt_root) if f.endswith('.png')]
+                if gt_files:
+                    self.gts = [os.path.join(gt_root, f) for f in gt_files]
+                    self.gts = sorted(self.gts)
+            except (FileNotFoundError, NotADirectoryError):
+                self.gts = None
+
         self.images = sorted(self.images)
-        self.depth = sorted(self.depth)
-        self.gts = sorted(self.gts)
+        self.depths = sorted(self.depths)
+
         self.img_transform = transforms.Compose([
             transforms.Resize((self.testsize, self.testsize)),
             transforms.ToTensor(),
@@ -169,16 +171,23 @@ class test_dataset:
 
     def load_data(self):
         image = self.rgb_loader(self.images[self.index])
+        image_for_scale = image
         image = self.img_transform(image).unsqueeze(0)
-        depth = self.binary_loader(self.depth[self.index])
+
+        depth = self.binary_loader(self.depths[self.index])
         depth = self.depth_transform(depth).unsqueeze(0)
-        gt = self.binary_loader(self.gts[self.index])
-        name = self.images[self.index].split('\\')[-1]
-        if name.endswith('.jpg'):
-            name = name.split('.jpg')[0] + '.png'
+
+        gt = None
+        if self.gts is not None and self.index < len(self.gts):
+            gt = self.binary_loader(self.gts[self.index])
+
+        name = os.path.basename(self.images[self.index])
+        if name.endswith('.bmp'):
+            name = name.split('.bmp')[0] + '.png'
+
         self.index += 1
         self.index = self.index % self.size
-        return image, depth, gt, name
+        return image, depth, gt, name, image_for_scale.size
 
     def rgb_loader(self, path):
         with open(path, 'rb') as f:
