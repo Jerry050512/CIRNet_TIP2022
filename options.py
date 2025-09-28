@@ -15,19 +15,19 @@ parser.add_argument('--load', type=str, default=None, help='train from checkpoin
 parser.add_argument('--gpu_id', type=str, default='0', help='gpu')
 parser.add_argument('--backbone', type=str, default='R50', help='backbone networks:R50 or V16')
 
-parser.add_argument('--rgb_root', type=str, default='./datasets/NEU-RSDDS-AUG/Image_train/',
+parser.add_argument('--rgb_root', type=str, default='../datasets/NEU-RSDDS-AUG/Image_train/',
                     help='the training rgb images root')
-parser.add_argument('--depth_root', type=str, default='./datasets/NEU-RSDDS-AUG/Depth_train/',
+parser.add_argument('--depth_root', type=str, default='../datasets/NEU-RSDDS-AUG/Depth_train/',
                     help='the training depth images root')
-parser.add_argument('--gt_root', type=str, default='./datasets/NEU-RSDDS-AUG/GT_train/',
+parser.add_argument('--gt_root', type=str, default='../datasets/NEU-RSDDS-AUG/GT_train/',
                     help='the training gt images root')
 
-parser.add_argument('--save_path', type=str, default='./output/', help='the path to save models and logs')
+parser.add_argument('--save_path', type=str, default='/hy-tmp/output/', help='the path to save models and logs')
 
 # test set
 parser.add_argument('--testsize', type=int, default=352, help='testing image size')
-parser.add_argument('--test_path', type=str, default='./datasets/NEU-RSDDS-AUG/', help='test dataset path')
-parser.add_argument('--test_model', type=str, default='./output/checkpoint.pth',
+parser.add_argument('--test_path', type=str, default='../datasets/NEU-RSDDS-AUG/', help='test dataset path')
+parser.add_argument('--test_model', type=str, default='/hy-tmp/output/checkpoint.pth',
                     help='load the model for testing')
 
 opt = parser.parse_args()
